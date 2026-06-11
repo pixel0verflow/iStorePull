@@ -88,35 +88,41 @@ istorepull lookup -b com.example.app                # bundle id -> adam id
 istorepull lookup -i 357218860                       # adam id  -> bundle id
 istorepull search "example" -l 10
 
-# needs an imported session:
-istorepull versions -i 357218860                     # list external version ids
-istorepull versions -i 357218860 --resolve --last 5  # map the newest 5 ids -> versions
+# needs a session (capture/import):
+istorepull versions -i 357218860                     # newest builds, resolved to versions
+istorepull versions -i 357218860 --last 15           # resolve more
+istorepull versions -i 357218860 --all               # every raw external id
+istorepull versions -i 357218860 --clear-cache       # drop the cached id↔version map
 
 istorepull download -i 357218860                     # current build
 istorepull download -i 357218860 --version-id 878571262
 istorepull download -b com.example.app --version 17.8.1 -o ./out/
 ```
 
-The download streams the asset, verifies its `md5`, injects the `sinf` blobs and an
-`iTunesMetadata.plist`, and writes a ready-to-install `.ipa`.
+`versions` resolves the newest few builds into version strings and caches the
+id↔version map at `~/.istorepull/vermap/<adamId>.json` (immutable, so reused
+forever). `download --version` resolves via that cache, else binary-searches the
+build list (~log₂n probes). The download streams the asset, verifies its `md5`,
+injects the `sinf` blobs and an `iTunesMetadata.plist`, and writes a ready `.ipa`.
 
 ## Exit codes
 
 | code | meaning |
 |------|---------|
 | 0 | ok |
-| 2 | session expired/invalid — re-import |
+| 2 | session expired/invalid — re-capture |
 | 3 | build no longer served |
 | 4 | bad input |
 
 ## Layout
 
 ```
-cmd/            cobra CLI (token, lookup, search, versions, download)
+cmd/            cobra CLI (capture, token, lookup, search, versions, download)
 pkg/credential  Session model + on-disk store (~/.istorepull/session.json, 0600)
-pkg/charles     .chlz / .har / pasted-headers -> Session
+pkg/charles     .chlz / .har / pasted-headers / live request -> Session
+pkg/capture     embedded selective-MITM proxy (auto-extract session, macOS)
 pkg/httpx       store HTTP client (cookie jar, pod re-POST, plist codec)
-pkg/store       MZFinance replay: DownloadProduct, Versions, typed errors
+pkg/store       MZFinance replay: DownloadProduct, Versions, binary-search resolution, typed errors
 pkg/itunes      public iTunes lookup/search
 pkg/ipa         IPA assembly (sinf + iTunesMetadata injection)
 ```
