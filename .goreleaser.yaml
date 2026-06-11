@@ -1,0 +1,85 @@
+version: 2
+
+project_name: istorepull
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: istorepull
+    main: .
+    binary: istorepull
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/pixel0verflow/istorepull/cmd.version={{ .Version }}
+
+universal_binaries:
+  - id: istorepull
+    replace: true
+
+archives:
+  - id: istorepull
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+      - ARCHITECTURE.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "Merge pull request"
+      - "Merge branch"
+
+release:
+  github:
+    owner: pixel0verflow
+    name: iStorePull
+  draft: false
+  prerelease: auto
+
+homebrew_casks:
+  - name: istorepull
+    repository:
+      owner: pixel0verflow
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/pixel0verflow/iStorePull"
+    description: "Pull encrypted IPAs from Apple using a borrowed Configurator session"
+    commit_author:
+      name: goreleaser
+      email: noreply@github.com
+    # Strip the Gatekeeper quarantine flag so the unsigned binary runs.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr",
+              args: ["-dr", "com.apple.quarantine", "#{staged_path}/istorepull"],
+              must_succeed: false
+          end

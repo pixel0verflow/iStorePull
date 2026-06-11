@@ -8,6 +8,12 @@
 *.so
 *.dylib
 
+# GoReleaser output
+/dist/
+
+# Compiled CLI binary
+/istorepull
+
 # Test binary, built with `go test -c`
 *.test
 

@@ -28,6 +28,19 @@ Pure Go, no cgo, single static binary (macOS/Linux/Windows).
 
 ## Install
 
+**Homebrew (macOS):**
+
+```sh
+brew install pixel0verflow/tap/istorepull
+```
+
+**Prebuilt binary:** grab the archive for your OS/arch from
+[Releases](https://github.com/pixel0verflow/iStorePull/releases), unpack it, and put
+`istorepull` on your `PATH`. macOS universal, Linux and Windows builds (amd64 +
+arm64) are published for every tag, with `checksums.txt` to verify.
+
+**From source** (Go 1.26+):
+
 ```sh
 go build -o istorepull .
 ```
