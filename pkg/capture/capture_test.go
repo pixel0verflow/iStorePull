@@ -34,7 +34,7 @@ func (f *fakeSystem) SetProxy(string, int) (func() error, error) {
 
 func TestRunTimeoutTearsDown(t *testing.T) {
 	sys := &fakeSystem{}
-	_, err := Run(context.Background(), sys, Options{
+	_, _, err := Run(context.Background(), sys, Options{
 		Addr:    "127.0.0.1:0",
 		Timeout: 100 * time.Millisecond,
 	}, io.Discard)
@@ -51,7 +51,7 @@ func TestRunTimeoutTearsDown(t *testing.T) {
 
 func TestRunTrustFailureAborts(t *testing.T) {
 	sys := &fakeSystem{trustErr: errors.New("user denied")}
-	_, err := Run(context.Background(), sys, Options{Timeout: time.Second}, io.Discard)
+	_, _, err := Run(context.Background(), sys, Options{Timeout: time.Second}, io.Discard)
 	if err == nil {
 		t.Fatal("expected error when CA trust fails")
 	}
@@ -62,7 +62,7 @@ func TestRunTrustFailureAborts(t *testing.T) {
 
 func TestRunProxyFailureRemovesCA(t *testing.T) {
 	sys := &fakeSystem{proxyErr: errors.New("no network service")}
-	_, err := Run(context.Background(), sys, Options{Addr: "127.0.0.1:0", Timeout: time.Second}, io.Discard)
+	_, _, err := Run(context.Background(), sys, Options{Addr: "127.0.0.1:0", Timeout: time.Second}, io.Discard)
 	if err == nil {
 		t.Fatal("expected error when proxy set fails")
 	}

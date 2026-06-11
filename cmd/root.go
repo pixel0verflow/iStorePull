@@ -89,7 +89,7 @@ func loadSession() (credential.Session, error) {
 	s, err := credential.Load(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return s, fmt.Errorf("no session at %s — run `istorepull token import` first", path)
+			return s, fmt.Errorf("no session found at %s — run `istorepull capture` to extract an iTunes token (or `istorepull token import` if you captured traffic yourself)", path)
 		}
 		return s, err
 	}

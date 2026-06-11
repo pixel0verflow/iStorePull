@@ -24,12 +24,13 @@ func newCaptureCmd() *cobra.Command {
 			"points the system proxy at itself. Trigger any app download in Apple\n" +
 			"Configurator and the session is extracted and saved automatically.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			sess, err := capture.Run(cmd.Context(), capture.NewSystem(), capture.Options{
+			out := cmd.OutOrStdout()
+			sess, cleanup, err := capture.Run(cmd.Context(), capture.NewSystem(), capture.Options{
 				Addr:    addr,
 				Timeout: timeout,
 				KeepCA:  keepCA,
 				Verbose: flagVerbose,
-			}, cmd.OutOrStdout())
+			}, out)
 			if err != nil {
 				return err
 			}
@@ -38,13 +39,19 @@ func newCaptureCmd() *cobra.Command {
 			}
 			path, err := sessionPath()
 			if err != nil {
+				cleanup()
 				return err
 			}
 			if err := credential.Save(path, sess); err != nil {
+				cleanup()
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "\ncaptured and saved session to %s\n", path)
-			printSession(cmd.OutOrStdout(), sess)
+			fmt.Fprintln(out, "captured and saved session")
+			fmt.Fprintf(out, "  x-token:   %s\n", redact(sess.XToken))
+			fmt.Fprintf(out, "  captured:  %s\n", sess.CapturedAt.Format("2006-01-02 15:04:05 MST"))
+			fmt.Fprintf(out, "  source:    %s\n", sess.Source)
+
+			cleanup()
 			return nil
 		},
 	}

@@ -8,8 +8,8 @@ import (
 
 // Sentinel errors callers can match with errors.Is.
 var (
-	// ErrSessionExpired means the borrowed token is no longer valid; re-import.
-	ErrSessionExpired = errors.New("session expired or invalid — re-capture from Configurator and `token import` again")
+	// ErrSessionExpired means the borrowed token is no longer valid; re-capture.
+	ErrSessionExpired = errors.New("session expired or invalid — run `istorepull capture` again to extract a fresh iTunes token")
 	// ErrNoLicense means the account holds no license for the title.
 	ErrNoLicense = errors.New("account holds no license for this title")
 	// ErrNotServed means the requested build is no longer served by Apple.

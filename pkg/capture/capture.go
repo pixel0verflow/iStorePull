@@ -22,9 +22,12 @@ type Options struct {
 }
 
 // Run installs the throwaway CA, points the system proxy at an embedded
-// selective-MITM proxy, waits for Apple Configurator to make a store request,
-// extracts the session, and tears everything back down.
-func Run(ctx context.Context, sys System, opts Options, out io.Writer) (credential.Session, error) {
+// selective-MITM proxy, and waits for Apple Configurator to make a store
+// request. On success it returns the extracted session plus a cleanup func the
+// caller must invoke (after saving) to restore the proxy and remove the
+// certificate. On error, teardown has already run and cleanup is a no-op.
+func Run(ctx context.Context, sys System, opts Options, out io.Writer) (credential.Session, func(), error) {
+	noop := func() {}
 	if opts.Addr == "" {
 		opts.Addr = "127.0.0.1:0"
 	}
@@ -32,32 +35,38 @@ func Run(ctx context.Context, sys System, opts Options, out io.Writer) (credenti
 		opts.Timeout = 5 * time.Minute
 	}
 
+	fmt.Fprintln(out, "starting capture")
+
 	ca, err := NewCA()
 	if err != nil {
-		return credential.Session{}, err
+		return credential.Session{}, noop, err
 	}
 
+	fmt.Fprintln(out, "adding temporary root certificate to keychain (admin prompt)")
 	removeCA, err := sys.TrustCA(ca.CertPEM())
 	if err != nil {
-		return credential.Session{}, fmt.Errorf("trust CA: %w", err)
-	}
-	if !opts.KeepCA && removeCA != nil {
-		defer func() { _ = removeCA() }()
+		return credential.Session{}, noop, fmt.Errorf("trust CA: %w", err)
 	}
 
 	ln, err := net.Listen("tcp", opts.Addr)
 	if err != nil {
-		return credential.Session{}, fmt.Errorf("listen: %w", err)
+		removeCert(out, opts, removeCA)
+		return credential.Session{}, noop, fmt.Errorf("listen: %w", err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
 
 	restore, err := sys.SetProxy("127.0.0.1", port)
 	if err != nil {
 		_ = ln.Close()
-		return credential.Session{}, fmt.Errorf("set system proxy: %w", err)
+		removeCert(out, opts, removeCA)
+		return credential.Session{}, noop, fmt.Errorf("set system proxy: %w", err)
 	}
-	if restore != nil {
-		defer func() { _ = restore() }()
+
+	cleanup := func() {
+		if restore != nil {
+			_ = restore()
+		}
+		removeCert(out, opts, removeCA)
 	}
 
 	sessCh := make(chan credential.Session, 1)
@@ -75,8 +84,7 @@ func Run(ctx context.Context, sys System, opts Options, out io.Writer) (credenti
 
 	go func() { _ = proxy.Serve(ln) }()
 
-	fmt.Fprintf(out, "capture proxy listening on 127.0.0.1:%d\n", port)
-	fmt.Fprintln(out, "→ In Apple Configurator, download or update any app on your device now…")
+	fmt.Fprintln(out, "waiting for Configurator download")
 
 	wait, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
@@ -84,9 +92,19 @@ func Run(ctx context.Context, sys System, opts Options, out io.Writer) (credenti
 	select {
 	case s := <-sessCh:
 		_ = ln.Close()
-		return s, nil
+		return s, cleanup, nil
 	case <-wait.Done():
 		_ = ln.Close()
-		return credential.Session{}, fmt.Errorf("timed out after %s waiting for a store request — was a download triggered in Configurator?", opts.Timeout)
+		cleanup()
+		return credential.Session{}, noop, fmt.Errorf("timed out after %s waiting for a store request — was a download triggered in Configurator?", opts.Timeout)
 	}
+}
+
+// removeCert removes the trusted CA unless the user asked to keep it.
+func removeCert(out io.Writer, opts Options, removeCA func() error) {
+	if opts.KeepCA || removeCA == nil {
+		return
+	}
+	fmt.Fprintln(out, "removing root certificate from keychain")
+	_ = removeCA()
 }

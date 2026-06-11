@@ -12,12 +12,15 @@ func newVersionsCmd() *cobra.Command {
 		bundleID string
 		adamID   int64
 		country  string
-		resolve  bool
 		last     int
+		all      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "versions",
-		Short: "List downloadable build version ids for a title",
+		Short: "List downloadable build versions for a title",
+		Long: "versions lists the builds Apple still serves for a title. By default it\n" +
+			"resolves the newest few into human version strings (one store request per\n" +
+			"version, cached afterwards). Use --all to dump every raw external id cheaply.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			id, err := resolveAdamID(ctx, bundleID, adamID, country)
@@ -36,10 +39,12 @@ func newVersionsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, "adamId:  %d\nlatest:  %s\nbuilds:  %d\n", vl.AdamID, vl.Latest, len(vl.ExternalIDs))
 
-			if !resolve {
+			out := cmd.OutOrStdout()
+			fmt.Fprintf(out, "adamId:  %d\nbuilds:  %d total\n", vl.AdamID, len(vl.ExternalIDs))
+
+			if all {
+				fmt.Fprintln(out, "\nall external version ids (oldest → newest):")
 				for _, e := range vl.ExternalIDs {
 					fmt.Fprintln(out, e)
 				}
@@ -51,8 +56,8 @@ func newVersionsCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&bundleID, "bundle", "b", "", "bundle id")
 	cmd.Flags().Int64VarP(&adamID, "id", "i", 0, "adam id")
 	cmd.Flags().StringVar(&country, "country", "", "storefront country for bundle lookup")
-	cmd.Flags().BoolVar(&resolve, "resolve", false, "probe each id to print its version string")
-	cmd.Flags().IntVar(&last, "last", 0, "with --resolve, only resolve the newest N ids")
+	cmd.Flags().IntVar(&last, "last", 5, "how many of the newest builds to resolve into version strings")
+	cmd.Flags().BoolVar(&all, "all", false, "list every raw external version id instead (no resolving)")
 	return cmd
 }
 
@@ -73,6 +78,7 @@ func printResolved(cmd *cobra.Command, client store.Client, vl store.VersionList
 		}
 	}
 	if len(toProbe) > 0 {
+		fmt.Fprintf(out, "resolving newest %d (one store request each)…\n", len(toProbe))
 		infos, err := client.ResolveVersions(ctx, vl, toProbe)
 		if err != nil {
 			return err
@@ -83,9 +89,22 @@ func printResolved(cmd *cobra.Command, client store.Client, vl store.VersionList
 		saveVermap(vl.AdamID, cache)
 	}
 
-	fmt.Fprintf(out, "\n%-14s %s\n", "EXTERNAL-ID", "VERSION")
-	for _, id := range ids {
-		fmt.Fprintf(out, "%-14s %s\n", id, cache[id])
+	fmt.Fprintf(out, "\n%-10s %-14s %s\n", "VERSION", "EXTERNAL-ID", "")
+	// newest first for readability
+	for i := len(ids) - 1; i >= 0; i-- {
+		id := ids[i]
+		ver := cache[id]
+		if ver == "" {
+			ver = "?"
+		}
+		marker := ""
+		if id == vl.Latest {
+			marker = "(current)"
+		}
+		fmt.Fprintf(out, "%-10s %-14s %s\n", ver, id, marker)
+	}
+	if len(vl.ExternalIDs) > len(ids) {
+		fmt.Fprintf(out, "\n…and %d older builds. Use --last N for more, or --all for every id.\n", len(vl.ExternalIDs)-len(ids))
 	}
 	return nil
 }
