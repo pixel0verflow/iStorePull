@@ -9,11 +9,12 @@ import (
 
 func newVersionsCmd() *cobra.Command {
 	var (
-		bundleID string
-		adamID   int64
-		country  string
-		last     int
-		all      bool
+		bundleID   string
+		adamID     int64
+		country    string
+		last       int
+		all        bool
+		clearCache bool
 	)
 	cmd := &cobra.Command{
 		Use:   "versions",
@@ -26,6 +27,12 @@ func newVersionsCmd() *cobra.Command {
 			id, err := resolveAdamID(ctx, bundleID, adamID, country)
 			if err != nil {
 				return err
+			}
+			if clearCache {
+				if err := clearVerCache(id); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "cleared cached versions for adamId %d\n", id)
 			}
 			sess, err := loadSession()
 			if err != nil {
@@ -58,6 +65,7 @@ func newVersionsCmd() *cobra.Command {
 	cmd.Flags().StringVar(&country, "country", "", "storefront country for bundle lookup")
 	cmd.Flags().IntVar(&last, "last", 5, "how many of the newest builds to resolve into version strings")
 	cmd.Flags().BoolVar(&all, "all", false, "list every raw external version id instead (no resolving)")
+	cmd.Flags().BoolVar(&clearCache, "clear-cache", false, "discard the cached id↔version map for this app before resolving")
 	return cmd
 }
 
@@ -70,31 +78,31 @@ func printResolved(cmd *cobra.Command, client store.Client, vl store.VersionList
 		ids = ids[len(ids)-last:]
 	}
 
-	cache := loadVermap(vl.AdamID)
+	cache := loadVerCache(vl.AdamID)
 	var toProbe []string
 	for _, id := range ids {
-		if _, ok := cache[id]; !ok {
+		if _, ok := cache.version(id); !ok {
 			toProbe = append(toProbe, id)
 		}
 	}
 	if len(toProbe) > 0 {
-		fmt.Fprintf(out, "resolving newest %d (one store request each)…\n", len(toProbe))
+		fmt.Fprintf(out, "resolving %d uncached (one store request each)…\n", len(toProbe))
 		infos, err := client.ResolveVersions(ctx, vl, toProbe)
 		if err != nil {
 			return err
 		}
 		for _, in := range infos {
-			cache[in.ExternalID] = in.Version
+			cache.put(in.ExternalID, in.Version)
 		}
-		saveVermap(vl.AdamID, cache)
+		cache.save()
 	}
 
 	fmt.Fprintf(out, "\n%-10s %-14s %s\n", "VERSION", "EXTERNAL-ID", "")
 	// newest first for readability
 	for i := len(ids) - 1; i >= 0; i-- {
 		id := ids[i]
-		ver := cache[id]
-		if ver == "" {
+		ver, ok := cache.version(id)
+		if !ok {
 			ver = "?"
 		}
 		marker := ""

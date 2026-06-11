@@ -79,11 +79,22 @@ func resolveExternalID(ctx context.Context, client store.Client, adamID int64, v
 	case versionID != "":
 		return versionID, nil
 	case version != "":
+		// Cache first — id↔version is immutable, so a hit avoids all probing.
+		cache := loadVerCache(adamID)
+		if id, ok := cache.findByVersion(version); ok {
+			return id, nil
+		}
 		vl, err := client.Versions(ctx, adamID)
 		if err != nil {
 			return "", err
 		}
-		return client.FindExternalID(ctx, vl, version)
+		id, err := client.FindExternalID(ctx, vl, version)
+		if err != nil {
+			return "", err
+		}
+		cache.put(id, version)
+		cache.save()
+		return id, nil
 	default:
 		return "", nil // current build
 	}
