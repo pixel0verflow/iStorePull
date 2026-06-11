@@ -14,6 +14,18 @@ Pure Go, no cgo, single static binary (macOS/Linux/Windows).
 > `sinf` is passed through exactly as Apple delivers it. The session file holds a
 > live token; treat it as a secret.
 
+## Requirements
+
+- **Go 1.26+** to build (no cgo; cross-compiles to macOS/Linux/Windows).
+- **A captured Configurator session.** Capturing it needs a **Mac** running
+  [Apple Configurator](https://apps.apple.com/app/apple-configurator/id1037126344),
+  a connected iOS device, and a TLS proxy (Charles / Proxyman / mitmproxy) with its
+  root certificate trusted. See the
+  [capture guide](https://gist.github.com/pixel0verflow/40bb7e01377c2f0f1503cfa0acd95665)
+  for step-by-step instructions.
+- An Apple account entitled to the titles you pull. Running the tool itself (replay,
+  download, IPA assembly) works on any OS.
+
 ## Install
 
 ```sh
