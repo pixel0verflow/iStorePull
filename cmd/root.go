@@ -46,6 +46,7 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().BoolVarP(&flagVerbose, "verbose", "v", false, "verbose output")
 
 	root.AddCommand(newTokenCmd())
+	root.AddCommand(newCaptureCmd())
 	root.AddCommand(newLookupCmd())
 	root.AddCommand(newSearchCmd())
 	root.AddCommand(newVersionsCmd())

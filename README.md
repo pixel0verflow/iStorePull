@@ -51,10 +51,24 @@ go build -o istorepull .
 
 ## Capture a session
 
-In Apple Configurator, download any app for your account while a TLS proxy
-(Charles / Proxyman / mitmproxy) records the traffic. **Do not** intercept
-`gsa.apple.com` (it is certificate-pinned); only the `buy.itunes.apple.com` flow
-is needed. Export the session and import it:
+### Automatic (macOS, recommended)
+
+```sh
+istorepull capture
+```
+
+`capture` runs a short-lived HTTPS proxy, trusts a throwaway CA (you'll get one
+auth prompt), and points the system proxy at itself. It intercepts **only** the
+store hosts — `gsa.apple.com` and everything pinned are tunnelled through
+untouched, so Configurator's own auth keeps working. Then, when prompted,
+**download or update any app in Apple Configurator**; the session is extracted and
+saved automatically, and the proxy/CA are torn down. No Charles, no manual export.
+
+### Manual (any proxy)
+
+Alternatively, capture the traffic yourself in Charles / Proxyman / mitmproxy and
+import it. **Do not** intercept `gsa.apple.com` (certificate-pinned); only the
+`buy.itunes.apple.com` flow is needed.
 
 ```sh
 istorepull token import --charles session.chlz     # Charles .chlz/.chls
@@ -63,8 +77,8 @@ istorepull token import --paste                     # paste raw request headers 
 istorepull token info                               # inspect the active session
 ```
 
-The importer pulls `X-Token`, the cookie jar, `X-Apple-Store-Front`, the DSID and
-the bound `guid` out of a `volumeStoreDownloadProduct` request.
+Both paths pull `X-Token`, the cookie jar, `X-Apple-Store-Front`, the DSID and the
+bound `guid` out of a store request.
 
 ## Use
 
